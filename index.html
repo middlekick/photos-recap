@@ -18,7 +18,8 @@
   <!-- ============ HEADER ============ -->
   <header class="app-header">
     <div class="brand">
-      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-mark" id="brandMark" aria-hidden="true"></span>
+      <img id="brandLogo" class="brand-logo hidden" alt="Logo entreprise" />
       <div class="brand-text">
         <h1>CORDE SYSTEMES — Générateur de rapports</h1>
         <p>Rapports photo d'intervention · Travaux sur cordes · 100&nbsp;% local</p>
@@ -55,8 +56,12 @@
           <input type="text" id="recipientName" name="recipientName" placeholder="Ex : Monsieur Jay GOPAUL" />
         </div>
         <div class="field">
-          <label for="companyAddress">Adresse de l'entreprise</label>
-          <input type="text" id="companyAddress" name="companyAddress" placeholder="38 rue Jacques Ibert, 92300 Levallois-Perret" />
+          <label for="companyAddress">Adresse de l'entreprise (rue)</label>
+          <input type="text" id="companyAddress" name="companyAddress" placeholder="38 rue Jacques Ibert" />
+        </div>
+        <div class="field">
+          <label for="companyPostal">Code postal &amp; ville</label>
+          <input type="text" id="companyPostal" name="companyPostal" placeholder="92300 Levallois-Perret" />
         </div>
         <div class="field">
           <label for="siteAddress">Adresse du chantier</label>
@@ -117,12 +122,12 @@
       <div id="photoGrid" class="photo-grid"></div>
     </section>
 
-    <!-- ============ 3. FIN DE RAPPORT ============ -->
+    <!-- ============ 3. OBSERVATIONS & FIN DE RAPPORT ============ -->
     <section class="card">
-      <h2 class="section-title"><span class="step">3</span> Fin de rapport <span class="muted-hint">(après les photos)</span></h2>
+      <h2 class="section-title"><span class="step">3</span> Observations &amp; fin de rapport</h2>
       <div class="form-grid">
         <div class="field field-full">
-          <label for="closingText">Texte libre / explications (optionnel)</label>
+          <label for="closingText">Observations / recommandations (optionnel)</label>
           <textarea id="closingText" name="closingText" rows="3"
             placeholder="Observations complémentaires, recommandations, suite à donner…"></textarea>
         </div>
@@ -132,8 +137,9 @@
         </div>
       </div>
       <p class="closing-preview">
-        Le rapport se terminera automatiquement par : « Restant à votre disposition… Cordialement, »
-        suivi de votre signature (modifiable dans <strong>⚙️ Paramètres</strong>).
+        Les observations apparaissent sur la 1<sup>re</sup> page (sous l'objet). Le rapport se termine
+        par « Restant à votre disposition… Cordialement, » + votre signature
+        (nom, image &amp; coordonnées modifiables dans <strong>⚙️ Paramètres</strong>).
       </p>
     </section>
 
@@ -241,6 +247,35 @@
           <div class="field"><label for="setWeb">Site web</label><input type="text" id="setWeb" /></div>
           <div class="field"><label for="setSignatory">Signature (nom)</label><input type="text" id="setSignatory" /></div>
           <div class="field"><label for="setSignatoryPhone">Téléphone signature</label><input type="text" id="setSignatoryPhone" /></div>
+          <div class="field field-full"><label for="setLegal1">Mention légale — ligne 1</label><input type="text" id="setLegal1" placeholder="Entreprise individuelle MIKULIC Marko" /></div>
+          <div class="field field-full"><label for="setLegal2">Mention légale — ligne 2</label><input type="text" id="setLegal2" placeholder="SIREN … - SIRET … - Code APE …" /></div>
+        </div>
+
+        <div class="settings-images">
+          <div class="img-field">
+            <label>Logo de l'entreprise</label>
+            <div class="img-row">
+              <img id="logoPreview" class="img-preview hidden" alt="Aperçu du logo" />
+              <span id="logoEmpty" class="img-empty">Aucun logo</span>
+              <div class="img-actions">
+                <button type="button" id="logoPick" class="btn btn-ghost">Choisir…</button>
+                <button type="button" id="logoRemove" class="btn btn-ghost">Retirer</button>
+              </div>
+            </div>
+            <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp" hidden />
+          </div>
+          <div class="img-field">
+            <label>Signature manuscrite (image)</label>
+            <div class="img-row">
+              <img id="sigPreview" class="img-preview hidden" alt="Aperçu de la signature" />
+              <span id="sigEmpty" class="img-empty">Aucune signature</span>
+              <div class="img-actions">
+                <button type="button" id="sigPick" class="btn btn-ghost">Choisir…</button>
+                <button type="button" id="sigRemove" class="btn btn-ghost">Retirer</button>
+              </div>
+            </div>
+            <input type="file" id="sigFile" accept="image/png,image/jpeg,image/webp" hidden />
+          </div>
         </div>
       </div>
       <div class="settings-footer">

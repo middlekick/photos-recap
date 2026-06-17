@@ -439,6 +439,49 @@ input[type="color"] {
 .muted-hint { font-size: 12px; font-weight: 400; color: var(--text-faint); }
 .closing-preview { margin: 14px 2px 0; font-size: 12.5px; color: var(--text-dim); }
 
+/* Logo dans l'en-tête de l'app */
+.brand-logo { height: 40px; max-width: 150px; object-fit: contain; display: block; }
+
+/* Zone images des paramètres (logo + signature) */
+.settings-images {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-top: 18px;
+}
+.img-field > label {
+  display: block;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+.img-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  min-height: 64px;
+}
+.img-preview {
+  max-height: 54px;
+  max-width: 130px;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 4px;
+  padding: 3px;
+}
+.img-empty { font-size: 12.5px; color: var(--text-faint); }
+.img-actions { margin-left: auto; display: flex; gap: 6px; }
+.img-actions .btn { padding: 6px 10px; font-size: 12.5px; }
+
+@media (max-width: 560px) {
+  .settings-images { grid-template-columns: 1fr; }
+}
+
 .editor-footer {
   display: flex;
   align-items: flex-end;

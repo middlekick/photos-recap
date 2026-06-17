@@ -45,6 +45,12 @@
     web: 'www.corde-systemes.com',
     signatory: 'M MIKULIC',
     signatoryPhone: '0611262838',
+    legal1: 'Entreprise individuelle MIKULIC Marko',
+    legal2: 'SIREN 494 318 009 - SIRET 494 318 009 00037 - Code APE 4399D',
+    logo: '',           // data URL du logo (optionnel)
+    logoRatio: 0,       // hauteur / largeur
+    signatureImg: '',   // data URL de la signature manuscrite (optionnel)
+    signatureRatio: 0,
   };
   let settings = Object.assign({}, DEFAULT_SETTINGS);
 
@@ -55,8 +61,8 @@
     } catch (_) { /* localStorage indisponible : valeurs par défaut */ }
   }
   function persistSettings() {
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
-    catch (_) { /* écriture impossible (ex. file:// restreint) : on garde en mémoire */ }
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); return true; }
+    catch (_) { return false; /* file:// restreint ou quota : on garde en mémoire */ }
   }
 
   /* ---------------- Raccourcis DOM ---------------- */
@@ -68,6 +74,7 @@
   function init() {
     cacheDom();
     loadSettings();
+    applyBrandLogo();
     bindClientForm();
     bindImport();
     bindEditorControls();
@@ -75,6 +82,35 @@
     bindPdf();
     // Date du jour par défaut
     el.dateStart.value = new Date().toISOString().slice(0, 10);
+  }
+
+  // Affiche le logo dans l'en-tête de l'app (sinon le triangle jaune)
+  function applyBrandLogo() {
+    const img = document.getElementById('brandLogo');
+    const mark = document.getElementById('brandMark');
+    if (settings.logo) {
+      img.src = settings.logo;
+      img.classList.remove('hidden');
+      if (mark) mark.classList.add('hidden');
+    } else {
+      img.classList.add('hidden');
+      img.removeAttribute('src');
+      if (mark) mark.classList.remove('hidden');
+    }
+  }
+
+  // Redimensionne une image (fichier) en data URL PNG, renvoie { url, ratio }
+  async function fileToScaledPng(file, maxDim) {
+    const dataUrl = await blobToDataURL(file);
+    const img = await loadImage(dataUrl);
+    let w = img.naturalWidth, h = img.naturalHeight;
+    const scale = Math.min(1, maxDim / Math.max(w, h));
+    w = Math.max(1, Math.round(w * scale));
+    h = Math.max(1, Math.round(h * scale));
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    c.getContext('2d').drawImage(img, 0, 0, w, h);
+    return { url: c.toDataURL('image/png'), ratio: h / w };
   }
 
   function cacheDom() {
@@ -119,6 +155,7 @@
       company:        $('#company').value.trim(),
       recipientName:  $('#recipientName').value.trim(),
       companyAddress: $('#companyAddress').value.trim(),
+      companyPostal:  $('#companyPostal').value.trim(),
       siteAddress:    $('#siteAddress').value.trim(),
       siteContact:    $('#siteContact').value.trim(),
       dateLabel:      $('#dateLabel').value,
@@ -924,7 +961,11 @@
     setName: 'name', setContact: 'contact', setAddr1: 'addr1', setAddr2: 'addr2',
     setGsm: 'gsm', setFax: 'fax', setEmail: 'email', setWeb: 'web',
     setSignatory: 'signatory', setSignatoryPhone: 'signatoryPhone',
+    setLegal1: 'legal1', setLegal2: 'legal2',
   };
+  // État de travail des images du formulaire (validé à l'enregistrement)
+  let formLogo = { url: '', ratio: 0 };
+  let formSig  = { url: '', ratio: 0 };
 
   function bindSettings() {
     $('#btnSettings').addEventListener('click', openSettings);
@@ -942,6 +983,35 @@
       if ($('#settingsModal').classList.contains('hidden')) return;
       if (e.key === 'Escape') closeSettings();
     });
+
+    // Logo
+    $('#logoPick').addEventListener('click', () => $('#logoFile').click());
+    $('#logoFile').addEventListener('change', async (e) => {
+      const f = e.target.files && e.target.files[0]; e.target.value = '';
+      if (!f) return;
+      try { formLogo = await fileToScaledPng(f, 420); updateImgPreviews(); }
+      catch (_) { toast('Image de logo illisible.', 'error'); }
+    });
+    $('#logoRemove').addEventListener('click', () => { formLogo = { url: '', ratio: 0 }; updateImgPreviews(); });
+
+    // Signature manuscrite
+    $('#sigPick').addEventListener('click', () => $('#sigFile').click());
+    $('#sigFile').addEventListener('change', async (e) => {
+      const f = e.target.files && e.target.files[0]; e.target.value = '';
+      if (!f) return;
+      try { formSig = await fileToScaledPng(f, 600); updateImgPreviews(); }
+      catch (_) { toast('Image de signature illisible.', 'error'); }
+    });
+    $('#sigRemove').addEventListener('click', () => { formSig = { url: '', ratio: 0 }; updateImgPreviews(); });
+  }
+
+  function updateImgPreviews() {
+    const lp = $('#logoPreview'), le = $('#logoEmpty');
+    if (formLogo.url) { lp.src = formLogo.url; lp.classList.remove('hidden'); le.classList.add('hidden'); }
+    else { lp.classList.add('hidden'); lp.removeAttribute('src'); le.classList.remove('hidden'); }
+    const sp = $('#sigPreview'), se = $('#sigEmpty');
+    if (formSig.url) { sp.src = formSig.url; sp.classList.remove('hidden'); se.classList.add('hidden'); }
+    else { sp.classList.add('hidden'); sp.removeAttribute('src'); se.classList.remove('hidden'); }
   }
 
   function fillSettingsForm(src) {
@@ -949,6 +1019,9 @@
       const e = document.getElementById(id);
       if (e) e.value = src[key] || '';
     });
+    formLogo = { url: src.logo || '', ratio: src.logoRatio || 0 };
+    formSig  = { url: src.signatureImg || '', ratio: src.signatureRatio || 0 };
+    updateImgPreviews();
   }
   function openSettings() {
     fillSettingsForm(settings);
@@ -965,10 +1038,13 @@
       const e = document.getElementById(id);
       next[key] = e ? e.value.trim() : '';
     });
+    next.logo = formLogo.url; next.logoRatio = formLogo.ratio;
+    next.signatureImg = formSig.url; next.signatureRatio = formSig.ratio;
     settings = Object.assign({}, DEFAULT_SETTINGS, next);
-    persistSettings();
+    const ok = persistSettings();
+    applyBrandLogo();
     closeSettings();
-    toast('Paramètres enregistrés.', 'success');
+    toast(ok ? 'Paramètres enregistrés.' : 'Enregistré pour cette session (stockage local indisponible).', ok ? 'success' : 'info');
   }
 
   /* ============================================================
@@ -1173,13 +1249,22 @@
 
   /* ---------- Page de garde façon courrier — en-têtes uniformes ---------- */
   function coverPage(doc, info, PW, PH, M) {
-    const topPad = 16;
+    const topPad = 15;
+    const LH = 6.2;        // interligne unique du corps (uniformité)
+    const SEC = 3.5;       // espace entre sections
 
-    // --- Émetteur (gauche) : bloc texte depuis les paramètres ---
+    // --- Émetteur (gauche) : logo optionnel + bloc texte ---
+    let textX = M, logoBottom = topPad;
+    if (settings.logo && settings.logoRatio) {
+      const LW = 26, LHt = LW * settings.logoRatio;
+      try { doc.addImage(settings.logo, 'PNG', M, topPad - 2, LW, LHt); } catch (_) {}
+      textX = M + LW + 5;
+      logoBottom = topPad - 2 + LHt;
+    }
     let ly = topPad;
     doc.setTextColor(...PDFC.ink);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
-    doc.text(settings.name || '', M, ly); ly += 5.2;
+    doc.text(settings.name || '', textX, ly); ly += 5.2;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDFC.dark);
     const left = [];
     if (settings.contact) left.push(settings.contact);
@@ -1189,72 +1274,86 @@
     if (settings.fax)     left.push('Fax : ' + settings.fax);
     if (settings.email)   left.push(settings.email);
     if (settings.web)     left.push(settings.web);
-    left.forEach((l) => { doc.text(l, M, ly); ly += 4.6; });
+    left.forEach((l) => { doc.text(l, textX, ly); ly += 4.6; });
+    const emitterBottom = Math.max(ly, logoBottom);
 
-    // --- Destinataire (droite) : même mise en forme ---
+    // --- Destinataire (droite, décalé plus bas que l'émetteur) ---
     const rx = PW - M;
-    let ry = topPad;
+    let ry = topPad + 16;
     doc.setTextColor(...PDFC.ink);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
     doc.text(info.company || '—', rx, ry, { align: 'right' }); ry += 5.2;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDFC.dark);
     const right = [];
-    if (info.recipientName) right.push(info.recipientName);
-    if (info.companyAddress) info.companyAddress.split(',').map((s) => s.trim()).filter(Boolean).forEach((p) => right.push(p));
+    if (info.recipientName)  right.push(info.recipientName);
+    if (info.companyAddress) right.push(info.companyAddress);
+    if (info.companyPostal)  right.push(info.companyPostal);
     right.forEach((l) => { doc.text(l, rx, ry, { align: 'right' }); ry += 4.6; });
 
     // --- Filet de séparation : noir + accent jaune ---
-    let y = Math.max(ly, ry) + 6;
+    let y = Math.max(emitterBottom, ry) + 6;
     doc.setDrawColor(...PDFC.ink); doc.setLineWidth(0.5); doc.line(M, y, PW - M, y);
     doc.setDrawColor(...PDFC.yellow); doc.setLineWidth(1.8); doc.line(M, y + 1.7, PW - M, y + 1.7);
 
     // --- Titre ---
-    y += 16;
+    y += 15;
     doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.setTextColor(...PDFC.ink);
     doc.text('RAPPORT PHOTOS', PW / 2, y, { align: 'center' });
     const tw = doc.getTextWidth('RAPPORT PHOTOS');
     doc.setDrawColor(...PDFC.yellow); doc.setLineWidth(2.6);
     doc.line(PW / 2 - tw / 2, y + 3, PW / 2 + tw / 2, y + 3);
-    y += 16;
+    y += 14;
 
-    // --- Chantier ---
-    const indent = 32;
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...PDFC.ink);
-    doc.text('Chantier :', M, y);
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(...PDFC.dark);
-    const siteLines = doc.splitTextToSize(info.siteAddress || '—', PW - M * 2 - indent);
-    doc.text(siteLines, M + indent, y);
-    y += 5.8 * siteLines.length;
+    // --- Bloc d'infos : kvLine partout (valeur juste après le label, pas de gros vide) ---
+    //     Interligne LH constant ; Objet et Observations sont séparés d'un saut (LH).
+    kvLine(doc, 'Chantier :', info.siteAddress || '—', M, y); y += LH;
     if (info.siteContact) {
+      // Continuation alignée sur la valeur (largeur de "Chantier :")
+      const tab = doc.getTextWidth('Chantier : ') + 0;
       doc.setFont('helvetica', 'italic'); doc.setFontSize(10); doc.setTextColor(...PDFC.grey);
-      doc.text('(contact sur place : ' + info.siteContact + ')', M + indent, y);
-      y += 6;
+      doc.text('(contact sur place : ' + info.siteContact + ')', M + tab, y);
+      y += LH;
     }
-    y += 1.5;
-
-    // --- Référence + Date : labels en gras, chacun à la ligne ---
-    if (info.reference) { kvLine(doc, 'Référence :', info.reference, M, y); y += 6.4; }
+    if (info.reference)             { kvLine(doc, 'Référence :', info.reference, M, y); y += LH; }
     const dval = formatDateValue(info);
-    if (dval) { kvLine(doc, (info.dateLabel || 'Date') + ' :', dval, M, y); y += 6.4; }
+    if (dval)                       { kvLine(doc, (info.dateLabel || 'Date') + ' :', dval, M, y); y += LH; }
 
-    // --- Objet ---
+    // --- Objet (séparé par un saut de ligne) ---
     if (info.description) {
-      y += 3;
+      y += LH;                                                           // 1 ligne vide
       doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...PDFC.ink);
-      doc.text('Objet :', M, y);
-      y += 6.5;
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(...PDFC.ink);
-      const objLines = doc.splitTextToSize('« ' + info.description + ' »', PW - M * 2);
-      doc.text(objLines, M, y);
-      y += objLines.length * 5.6;
+      doc.text('Objet :', M, y); y += LH;
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(...PDFC.ink);
+      doc.splitTextToSize('« ' + info.description + ' »', PW - M * 2).forEach((line) => {
+        doc.text(line, M, y); y += LH;
+      });
     }
 
-    // --- Pied de page de garde ---
-    doc.setDrawColor(...PDFC.light); doc.setLineWidth(0.4);
-    doc.line(M, PH - 22, PW - M, PH - 22);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...PDFC.grey);
-    doc.text('Document généré le ' + formatDateFr(new Date().toISOString().slice(0, 10)), M, PH - 15);
-    doc.text(state.photos.length + ' photo(s) au rapport', PW - M, PH - 15, { align: 'right' });
+    // --- Observations / recommandations (séparées par un saut de ligne) ---
+    if (info.closingText) {
+      y += LH;                                                           // 1 ligne vide
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...PDFC.ink);
+      doc.text('Observations / recommandations :', M, y); y += LH;
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(...PDFC.dark);
+      const obs = doc.splitTextToSize(info.closingText, PW - M * 2);
+      for (const line of obs) {
+        if (y > PH - 36) break;       // ne pas empiéter sur le devis/pied de page
+        doc.text(line, M, y); y += LH;
+      }
+    }
+
+    // --- Renvoi devis (sur la 1ʳᵉ page maintenant) ---
+    if (info.devisNumber) {
+      y += LH;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...PDFC.ink);
+      doc.text('Voir notre devis n°' + info.devisNumber + ' joint en annexe.', M, y);
+    }
+
+    // --- Pied de page de garde : méta + mentions légales ---
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PDFC.grey);
+    doc.text('Document généré le ' + formatDateFr(new Date().toISOString().slice(0, 10)), M, PH - 13);
+    doc.text(state.photos.length + ' photo(s) au rapport', PW - M, PH - 13, { align: 'right' });
+    legalFooter(doc, PW, PH, M);
   }
 
   // Étiquette en gras suivie de sa valeur, sur une ligne
@@ -1274,33 +1373,28 @@
     return s || '';
   }
 
-  // Page de clôture : texte libre + renvoi devis + formule de politesse figée
+  // Page de clôture : politesse + signature (image) + nom/tél
+  // (le renvoi au devis a été déplacé sur la 1ʳᵉ page)
   function closingPage(doc, info, PW, PH, M) {
     doc.addPage();
     pageChrome(doc, info, PW, PH, M);
     let y = M + 18;
-    const CW = PW - M * 2;
-
-    if (info.closingText) {
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(...PDFC.dark);
-      const lines = doc.splitTextToSize(info.closingText, CW);
-      doc.text(lines, M, y);
-      y += lines.length * 5.8 + 6;
-    }
-
-    if (info.devisNumber) {
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...PDFC.ink);
-      doc.text('Voir notre devis n°' + info.devisNumber + ' joint en annexe.', M, y);
-      y += 12;
-    } else {
-      y += 4;
-    }
 
     doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(...PDFC.dark);
-    doc.text('Restant à votre disposition pour tout complément d’information', M, y); y += 6;
-    doc.text('Cordialement,', M, y); y += 14;
-    doc.setFont('helvetica', 'bold'); doc.setTextColor(...PDFC.ink);
-    doc.text(settings.signatory || '', M, y); y += 8;
+    doc.text('Restant à votre disposition pour tout complément d’information', M, y); y += 6.5;
+    doc.text('Cordialement,', M, y); y += 9;
+
+    // Signature manuscrite (image) si présente
+    if (settings.signatureImg && settings.signatureRatio) {
+      const sw = 45, sh = sw * settings.signatureRatio;
+      try { doc.addImage(settings.signatureImg, 'PNG', M, y, sw, sh); } catch (_) {}
+      y += sh + 2;
+    } else {
+      y += 8;
+    }
+
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...PDFC.ink);
+    doc.text(settings.signatory || '', M, y); y += 6.5;
     doc.setFont('helvetica', 'normal'); doc.setTextColor(...PDFC.dark);
     doc.text(settings.signatoryPhone || '', M, y);
   }
@@ -1316,9 +1410,16 @@
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PDFC.white);
     doc.text('RAPPORT PHOTOS', PW / 2, 6.7, { align: 'center' });
     doc.text((info.company || '').slice(0, 34), PW - M, 6.7, { align: 'right' });
-    // filet bas
+    legalFooter(doc, PW, PH, M);
+  }
+
+  // Mentions légales (bas de page) — sur toutes les pages
+  function legalFooter(doc, PW, PH, M) {
     doc.setDrawColor(...PDFC.light); doc.setLineWidth(0.3);
-    doc.line(M, PH - 12, PW - M, PH - 12);
+    doc.line(M, PH - 17, PW - M, PH - 17);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...PDFC.grey);
+    if (settings.legal1) doc.text(settings.legal1, PW / 2, PH - 8.5, { align: 'center' });
+    if (settings.legal2) doc.text(settings.legal2, PW / 2, PH - 5, { align: 'center' });
   }
 
   function paginate(doc, PW, PH, M) {
@@ -1326,7 +1427,7 @@
     for (let i = 2; i <= n; i++) {        // saute la couverture
       doc.setPage(i);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PDFC.grey);
-      doc.text(`Page ${i - 1} / ${n - 1}`, PW - M, PH - 7, { align: 'right' });
+      doc.text(`Page ${i - 1} / ${n - 1}`, PW - M, PH - 13, { align: 'right' });
     }
   }
 
