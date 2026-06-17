@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rapport d'intervention — Travaux sur cordes</title>
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- jsPDF + AutoTable via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js" defer></script>
+  <!-- Lecture HEIC (photos iPhone) -->
+  <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+
+  <!-- ============ HEADER ============ -->
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div class="brand-text">
+        <h1>CORDE SYSTEMES — Générateur de rapports</h1>
+        <p>Rapports photo d'intervention · Travaux sur cordes · 100&nbsp;% local</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button id="btnSettings" class="btn btn-ghost" title="Informations de l'entreprise émettrice">⚙️ Paramètres</button>
+      <div class="layout-pick">
+        <label for="layoutSelect">Mise en page PDF</label>
+        <select id="layoutSelect">
+          <option value="flow">Standard — 1 à 2 / page</option>
+          <option value="grid4">Compact — 4 / page</option>
+          <option value="grid6">Dense — 6 / page</option>
+        </select>
+      </div>
+      <button id="btnGeneratePdf" class="btn btn-primary btn-lg">
+        📄 Générer le rapport PDF
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- ============ 1. INFOS CLIENT ============ -->
+    <section class="card">
+      <h2 class="section-title"><span class="step">1</span> Destinataire &amp; chantier</h2>
+      <form id="clientForm" class="form-grid" autocomplete="off">
+        <div class="field">
+          <label for="company">Entreprise cliente *</label>
+          <input type="text" id="company" name="company" placeholder="Ex : PLISSON Immobilier" required />
+        </div>
+        <div class="field">
+          <label for="recipientName">Destinataire (personne)</label>
+          <input type="text" id="recipientName" name="recipientName" placeholder="Ex : Monsieur Jay GOPAUL" />
+        </div>
+        <div class="field">
+          <label for="companyAddress">Adresse de l'entreprise</label>
+          <input type="text" id="companyAddress" name="companyAddress" placeholder="38 rue Jacques Ibert, 92300 Levallois-Perret" />
+        </div>
+        <div class="field">
+          <label for="siteAddress">Adresse du chantier</label>
+          <input type="text" id="siteAddress" name="siteAddress" placeholder="19 rue Théodore de Banville, 75017 Paris" />
+        </div>
+        <div class="field">
+          <label for="siteContact">Contact sur place</label>
+          <input type="text" id="siteContact" name="siteContact" placeholder="Optionnel — Ex : Monsieur Lamoulen" />
+        </div>
+        <div class="field">
+          <label for="reference">Référence chantier</label>
+          <input type="text" id="reference" name="reference" placeholder="Optionnel — N° de dossier" />
+        </div>
+        <div class="field">
+          <label for="dateLabel">Type de date</label>
+          <select id="dateLabel" name="dateLabel">
+            <option value="Date d'intervention">Date d'intervention</option>
+            <option value="Visite sur site">Visite sur site</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="dateStart">Date (ou début)</label>
+          <input type="date" id="dateStart" name="dateStart" />
+        </div>
+        <div class="field">
+          <label for="dateEnd">Date de fin (si plage)</label>
+          <input type="date" id="dateEnd" name="dateEnd" />
+        </div>
+        <div class="field field-full">
+          <label for="description">Objet / description des travaux</label>
+          <textarea id="description" name="description" rows="3"
+            placeholder="Ex : Purge des éléments instables de la corniche, suite à chute de pierres…"></textarea>
+        </div>
+      </form>
+    </section>
+
+    <!-- ============ 2. IMPORT PHOTOS ============ -->
+    <section class="card">
+      <h2 class="section-title">
+        <span class="step">2</span> Photos
+        <span id="photoCount" class="count-pill">0</span>
+      </h2>
+
+      <div id="dropzone" class="dropzone" tabindex="0">
+        <div class="dropzone-inner">
+          <span class="dropzone-icon">📷</span>
+          <p><strong>Glissez vos photos ici</strong> ou</p>
+          <button type="button" id="btnAddPhotos" class="btn btn-accent">Ajouter des photos</button>
+          <p class="dropzone-hint">JPG, PNG, WebP ou HEIC · plusieurs fichiers à la fois</p>
+        </div>
+        <input type="file" id="fileInput"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" multiple hidden />
+      </div>
+
+      <p id="gridHint" class="grid-hint hidden">
+        Cliquez sur une photo pour l'annoter · glissez-déposez pour réordonner.
+      </p>
+      <div id="photoGrid" class="photo-grid"></div>
+    </section>
+
+    <!-- ============ 3. FIN DE RAPPORT ============ -->
+    <section class="card">
+      <h2 class="section-title"><span class="step">3</span> Fin de rapport <span class="muted-hint">(après les photos)</span></h2>
+      <div class="form-grid">
+        <div class="field field-full">
+          <label for="closingText">Texte libre / explications (optionnel)</label>
+          <textarea id="closingText" name="closingText" rows="3"
+            placeholder="Observations complémentaires, recommandations, suite à donner…"></textarea>
+        </div>
+        <div class="field">
+          <label for="devisNumber">N° de devis joint en annexe (optionnel)</label>
+          <input type="text" id="devisNumber" name="devisNumber" placeholder="Ex : 2606F030" />
+        </div>
+      </div>
+      <p class="closing-preview">
+        Le rapport se terminera automatiquement par : « Restant à votre disposition… Cordialement, »
+        suivi de votre signature (modifiable dans <strong>⚙️ Paramètres</strong>).
+      </p>
+    </section>
+
+  </main>
+
+  <!-- ============ 3. MODAL ÉDITEUR ANNOTATION ============ -->
+  <div id="editorModal" class="modal-overlay hidden" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Éditeur d'annotation">
+      <div class="modal-header">
+        <h3 id="editorTitle">Annotation — Photo</h3>
+        <button type="button" id="editorClose" class="icon-btn" title="Fermer">✕</button>
+      </div>
+
+      <div class="editor-toolbar">
+        <div class="tool-group" role="group" aria-label="Outils">
+          <button class="tool-btn" data-tool="pen"     title="Crayon (dessin libre)">✏️</button>
+          <button class="tool-btn" data-tool="arrow"   title="Flèche">➡️</button>
+          <button class="tool-btn" data-tool="rect"    title="Rectangle">⬜</button>
+          <button class="tool-btn" data-tool="ellipse" title="Cercle / Ellipse">⭕</button>
+          <button class="tool-btn" data-tool="focus"   title="Zone de focus (assombrit le reste)">🔲</button>
+          <button class="tool-btn" data-tool="zoom"    title="Loupe — agrandit la zone (déplaçable ensuite)">🔍</button>
+          <button class="tool-btn" data-tool="crop"    title="Rogner / recadrer la photo">✂️</button>
+        </div>
+
+        <div class="tool-group">
+          <span class="swatches" id="swatches"></span>
+          <input type="color" id="colorPicker" value="#FF3B30" title="Couleur personnalisée" />
+        </div>
+
+        <div class="tool-group thickness">
+          <label for="widthRange">Épaisseur</label>
+          <input type="range" id="widthRange" min="1" max="20" value="4" />
+          <span id="widthVal" class="width-val">4</span>
+        </div>
+
+        <div class="tool-group view-group">
+          <button class="tool-btn" id="btnZoomOut" title="Dézoomer l'affichage">➖</button>
+          <span id="zoomVal" class="width-val" title="Zoom d'affichage">100%</span>
+          <button class="tool-btn" id="btnZoomIn" title="Zoomer l'affichage (précision)">➕</button>
+          <button class="tool-btn" id="btnZoomReset" title="Réinitialiser le zoom">⟲</button>
+        </div>
+
+        <div class="tool-group">
+          <button class="tool-btn hidden" id="btnCropReset" title="Annuler le dernier recadrage">↺ Recadrage</button>
+          <button class="tool-btn" id="btnUndo" title="Annuler la dernière action">↩️ Annuler</button>
+          <button class="tool-btn" id="btnClear" title="Tout effacer">🗑️ Effacer</button>
+        </div>
+      </div>
+
+      <div class="editor-body" id="editorBody">
+        <div class="canvas-wrap" id="canvasWrap">
+          <canvas id="editCanvas"></canvas>
+        </div>
+        <div id="cropBar" class="crop-bar hidden">
+          <span>✂️ Recadrer la zone sélectionnée ?</span>
+          <button id="cropApply" class="btn btn-primary">Appliquer</button>
+          <button id="cropCancel" class="btn btn-ghost">Annuler</button>
+        </div>
+      </div>
+
+      <div class="editor-footer">
+        <div class="meta-fields">
+          <div class="field">
+            <label for="captionInput">Légende</label>
+            <input type="text" id="captionInput"
+              placeholder="Ex : Vue d'ensemble façade nord — avant travaux" />
+          </div>
+          <div class="field field-type">
+            <label for="typeSelect">Type</label>
+            <select id="typeSelect">
+              <option value="">— Aucun</option>
+              <option value="Avant">Avant</option>
+              <option value="Après">Après</option>
+            </select>
+          </div>
+        </div>
+        <div class="footer-actions">
+          <button type="button" id="editorCancel" class="btn btn-ghost">Annuler</button>
+          <button type="button" id="editorValidate" class="btn btn-primary">✓ Valider</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MODAL PARAMÈTRES ENTREPRISE ============ -->
+  <div id="settingsModal" class="modal-overlay hidden" aria-hidden="true">
+    <div class="modal modal-sm" role="dialog" aria-modal="true" aria-label="Paramètres entreprise">
+      <div class="modal-header">
+        <h3>⚙️ Entreprise émettrice</h3>
+        <button type="button" id="settingsClose" class="icon-btn" title="Fermer">✕</button>
+      </div>
+      <div class="settings-body">
+        <p class="settings-note">
+          Ces informations forment l'en-tête et la signature de chaque rapport.
+          Elles sont enregistrées sur cet ordinateur et conservées dans le temps.
+        </p>
+        <div class="form-grid">
+          <div class="field"><label for="setName">Nom de l'entreprise</label><input type="text" id="setName" /></div>
+          <div class="field"><label for="setContact">Contact</label><input type="text" id="setContact" /></div>
+          <div class="field"><label for="setAddr1">Adresse</label><input type="text" id="setAddr1" /></div>
+          <div class="field"><label for="setAddr2">Code postal &amp; ville</label><input type="text" id="setAddr2" /></div>
+          <div class="field"><label for="setGsm">GSM</label><input type="text" id="setGsm" /></div>
+          <div class="field"><label for="setFax">Fax</label><input type="text" id="setFax" /></div>
+          <div class="field"><label for="setEmail">Email</label><input type="text" id="setEmail" /></div>
+          <div class="field"><label for="setWeb">Site web</label><input type="text" id="setWeb" /></div>
+          <div class="field"><label for="setSignatory">Signature (nom)</label><input type="text" id="setSignatory" /></div>
+          <div class="field"><label for="setSignatoryPhone">Téléphone signature</label><input type="text" id="setSignatoryPhone" /></div>
+        </div>
+      </div>
+      <div class="settings-footer">
+        <button type="button" id="settingsReset" class="btn btn-ghost">Réinitialiser</button>
+        <span class="spacer"></span>
+        <button type="button" id="settingsCancel" class="btn btn-ghost">Annuler</button>
+        <button type="button" id="settingsSave" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TOASTS ============ -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+</body>
+</html>

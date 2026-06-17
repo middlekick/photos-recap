@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($node = \\(Get-Command node -ErrorAction SilentlyContinue\\); $py = \\(Get-Command python -ErrorAction SilentlyContinue\\); $npx = \\(Get-Command npx -ErrorAction SilentlyContinue\\); \"node: $\\($node.Source\\)\"; \"python: $\\($py.Source\\)\"; \"npx: $\\($npx.Source\\)\")",
+      "mcp__Claude_Preview__preview_start",
+      "PowerShell(python -c \"import importlib.util as u; print\\('pymupdf', bool\\(u.find_spec\\('fitz'\\)\\)\\); print\\('pdfplumber', bool\\(u.find_spec\\('pdfplumber'\\)\\)\\); print\\('pypdf', bool\\(u.find_spec\\('pypdf'\\)\\)\\); print\\('PIL', bool\\(u.find_spec\\('PIL'\\)\\)\\)\")"
+    ]
+  }
+}
