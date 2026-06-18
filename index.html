@@ -92,9 +92,21 @@
           <input type="date" id="dateEnd" name="dateEnd" />
         </div>
         <div class="field field-full">
-          <label for="description">Objet / description des travaux</label>
-          <textarea id="description" name="description" rows="3"
-            placeholder="Ex : Purge des éléments instables de la corniche, suite à chute de pierres…"></textarea>
+          <label>Objet / description des travaux</label>
+          <div class="rich-editor-wrap">
+            <div class="rich-toolbar" id="descToolbar">
+              <button class="rich-btn" data-cmd="bold"         title="Gras"><strong>G</strong></button>
+              <button class="rich-btn" data-cmd="italic"       title="Italique"><em>I</em></button>
+              <button class="rich-btn" data-cmd="underline"    title="Souligner"><u>S</u></button>
+              <div class="rich-sep"></div>
+              <input  type="color" id="descColor" class="rich-color" value="#e7ebf0" title="Couleur du texte" />
+              <button class="rich-btn" data-cmd="foreColor"    title="Appliquer la couleur au texte sélectionné" style="font-weight:700;color:inherit">A</button>
+              <div class="rich-sep"></div>
+              <button class="rich-btn" data-cmd="removeFormat" title="Effacer toute mise en forme">✕</button>
+            </div>
+            <div id="description" class="rich-editor" contenteditable="true"
+                 data-placeholder="Ex : Purge des éléments instables de la corniche, suite à chute de pierres…"></div>
+          </div>
         </div>
       </form>
     </section>

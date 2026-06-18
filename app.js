@@ -164,7 +164,7 @@
       dateStart:      $('#dateStart').value,
       dateEnd:        $('#dateEnd').value,
       reference:      $('#reference').value.trim(),
-      description:    $('#description').value.trim(),
+      description:    $('#description').innerHTML,
       closingText:    $('#closingText').innerHTML,
       devisType:      ($('#devisType') || {}).value || 'devis',
       devisNumber:    $('#devisNumber').value.trim(),
@@ -1163,9 +1163,10 @@
     set('dateLabel', info.dateLabel);
     set('dateStart', info.dateStart);
     set('dateEnd', info.dateEnd);
-    set('description', info.description);
     set('devisType', info.devisType || 'devis');
     set('devisNumber', info.devisNumber);
+    const desc = document.getElementById('description');
+    if (desc) desc.innerHTML = info.description || '';
     const ct = document.getElementById('closingText');
     if (ct) ct.innerHTML = info.closingText || '';
   }
@@ -1175,11 +1176,16 @@
   }
 
   /* ============================================================
-     ÉDITEUR DE TEXTE RICHE (observations)
+     ÉDITEUR DE TEXTE RICHE (réutilisable)
      ============================================================ */
   function bindRichEditor() {
-    const editor = document.getElementById('closingText');
-    const toolbar = document.getElementById('richToolbar');
+    initRichEditor('closingText', 'richToolbar', 'richColor');
+    initRichEditor('description',  'descToolbar',  'descColor');
+  }
+
+  function initRichEditor(editorId, toolbarId, colorId) {
+    const editor  = document.getElementById(editorId);
+    const toolbar = document.getElementById(toolbarId);
     if (!editor || !toolbar) return;
 
     // Sauvegarde / restauration de la sélection
@@ -1202,10 +1208,9 @@
       sel.addRange(savedRange);
     }
 
-    // Mise à jour de l'état des boutons
     function sync() {
       saveSelection();
-      updateRichToolbarState();
+      updateRichToolbarState(toolbar);
     }
 
     editor.addEventListener('mouseup', sync);
@@ -1215,39 +1220,35 @@
       if (document.activeElement === editor) sync();
     });
 
-    // Boutons de la toolbar
     toolbar.querySelectorAll('[data-cmd]').forEach((btn) => {
-      btn.addEventListener('mousedown', (e) => {
-        e.preventDefault(); // évite la perte de focus
-      });
+      btn.addEventListener('mousedown', (e) => { e.preventDefault(); });
       btn.addEventListener('click', () => {
         restoreSelection();
         const cmd = btn.dataset.cmd;
         if (cmd === 'foreColor') {
-          document.execCommand('foreColor', false, document.getElementById('richColor').value);
+          document.execCommand('foreColor', false, document.getElementById(colorId).value);
         } else {
           document.execCommand(cmd, false, null);
         }
         saveSelection();
-        updateRichToolbarState();
+        updateRichToolbarState(toolbar);
       });
     });
 
-    // Color picker : restaure la sélection avant d'appliquer la couleur
-    document.getElementById('richColor').addEventListener('input', (e) => {
+    document.getElementById(colorId).addEventListener('input', (e) => {
       restoreSelection();
       const sel = window.getSelection();
       if (sel && !sel.isCollapsed) {
         document.execCommand('foreColor', false, e.target.value);
         saveSelection();
-        updateRichToolbarState();
+        updateRichToolbarState(toolbar);
       }
     });
   }
 
-  function updateRichToolbarState() {
+  function updateRichToolbarState(toolbar) {
     ['bold', 'italic', 'underline'].forEach((cmd) => {
-      const btn = document.querySelector(`[data-cmd="${cmd}"]`);
+      const btn = toolbar.querySelector(`[data-cmd="${cmd}"]`);
       if (btn) btn.classList.toggle('active', document.queryCommandState(cmd));
     });
   }
@@ -1621,14 +1622,11 @@
     if (dval)                       { kvLine(doc, (info.dateLabel || 'Date') + ' :', dval, M, y); y += LH; }
 
     // --- Objet (séparé par un saut de ligne) ---
-    if (info.description) {
+    if (richTextHasContent(info.description)) {
       y += LH;                                                           // 1 ligne vide
       doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...PDFC.ink);
       doc.text('Objet :', M, y); y += LH;
-      doc.setFont('helvetica', 'normal'); doc.setTextColor(...PDFC.ink);
-      doc.splitTextToSize('« ' + info.description + ' »', PW - M * 2).forEach((line) => {
-        doc.text(line, M, y); y += LH;
-      });
+      y = drawRichTextInPdf(doc, info.description, M, y, PW - M * 2, LH, PDFC.ink);
     }
 
     // --- Observations / recommandations ---
