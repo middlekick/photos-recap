@@ -26,6 +26,7 @@
       </div>
     </div>
     <div class="header-actions">
+      <button id="btnHistory" class="btn btn-ghost" title="Historique des rapports générés">📋 Historique</button>
       <button id="btnSettings" class="btn btn-ghost" title="Informations de l'entreprise émettrice">⚙️ Paramètres</button>
       <div class="layout-pick">
         <label for="layoutSelect">Mise en page PDF</label>
@@ -127,19 +128,37 @@
       <h2 class="section-title"><span class="step">3</span> Observations &amp; fin de rapport</h2>
       <div class="form-grid">
         <div class="field field-full">
-          <label for="closingText">Observations / recommandations (optionnel)</label>
-          <textarea id="closingText" name="closingText" rows="3"
-            placeholder="Observations complémentaires, recommandations, suite à donner…"></textarea>
+          <label>Observations / recommandations (optionnel)</label>
+          <div class="rich-editor-wrap">
+            <div class="rich-toolbar" id="richToolbar">
+              <button class="rich-btn" data-cmd="bold"         title="Gras"><strong>G</strong></button>
+              <button class="rich-btn" data-cmd="italic"       title="Italique"><em>I</em></button>
+              <button class="rich-btn" data-cmd="underline"    title="Souligner"><u>S</u></button>
+              <div class="rich-sep"></div>
+              <input  type="color" id="richColor" class="rich-color" value="#e7ebf0" title="Couleur du texte" />
+              <button class="rich-btn" data-cmd="foreColor"    title="Appliquer la couleur au texte sélectionné" style="font-weight:700;color:inherit">A</button>
+              <div class="rich-sep"></div>
+              <button class="rich-btn" data-cmd="removeFormat" title="Effacer toute mise en forme">✕</button>
+            </div>
+            <div id="closingText" class="rich-editor" contenteditable="true"
+                 data-placeholder="Observations complémentaires, recommandations, suite à donner…"></div>
+          </div>
         </div>
         <div class="field">
-          <label for="devisNumber">N° de devis joint en annexe (optionnel)</label>
+          <label for="devisType">Type de document joint</label>
+          <select id="devisType" name="devisType">
+            <option value="devis">Devis</option>
+            <option value="facture">Facture</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="devisNumber">N° joint en annexe (optionnel)</label>
           <input type="text" id="devisNumber" name="devisNumber" placeholder="Ex : 2606F030" />
         </div>
       </div>
       <p class="closing-preview">
-        Les observations apparaissent sur la 1<sup>re</sup> page (sous l'objet). Le rapport se termine
-        par « Restant à votre disposition… Cordialement, » + votre signature
-        (nom, image &amp; coordonnées modifiables dans <strong>⚙️ Paramètres</strong>).
+        Les observations et la signature (« Cordialement… ») apparaissent sur la 1<sup>re</sup> page.
+        Nom, image de signature &amp; coordonnées modifiables dans <strong>⚙️ Paramètres</strong>.
       </p>
     </section>
 
@@ -283,6 +302,28 @@
         <span class="spacer"></span>
         <button type="button" id="settingsCancel" class="btn btn-ghost">Annuler</button>
         <button type="button" id="settingsSave" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MODAL HISTORIQUE ============ -->
+  <div id="historyModal" class="modal-overlay hidden" aria-hidden="true">
+    <div class="modal modal-sm modal-history" role="dialog" aria-modal="true" aria-label="Historique des rapports">
+      <div class="modal-header">
+        <h3>📋 Historique des rapports</h3>
+        <button type="button" id="historyClose" class="icon-btn" title="Fermer">✕</button>
+      </div>
+      <div class="history-body">
+        <p id="historyEmpty" class="history-empty">
+          Aucun rapport enregistré pour l'instant.<br>
+          <span style="font-size:12.5px;opacity:.7">Un rapport est sauvegardé automatiquement à chaque génération PDF.</span>
+        </p>
+        <ul id="historyList" class="history-list hidden"></ul>
+      </div>
+      <div class="settings-footer">
+        <button type="button" id="historyClearAll" class="btn btn-ghost">Tout effacer</button>
+        <span class="spacer"></span>
+        <button type="button" id="historyClose2" class="btn btn-ghost">Fermer</button>
       </div>
     </div>
   </div>

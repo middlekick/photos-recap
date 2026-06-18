@@ -1,4 +1,4 @@
-/* ============================================================
+﻿﻿/* ============================================================
    Rapport photo cordiste — logique applicative
    Vanilla JS · annotations vectorielles · export PDF (jsPDF)
    ============================================================ */
@@ -79,6 +79,8 @@
     bindImport();
     bindEditorControls();
     bindSettings();
+    bindHistory();
+    bindRichEditor();
     bindPdf();
     // Date du jour par défaut
     el.dateStart.value = new Date().toISOString().slice(0, 10);
@@ -163,7 +165,8 @@
       dateEnd:        $('#dateEnd').value,
       reference:      $('#reference').value.trim(),
       description:    $('#description').value.trim(),
-      closingText:    $('#closingText').value.trim(),
+      closingText:    $('#closingText').innerHTML,
+      devisType:      ($('#devisType') || {}).value || 'devis',
       devisNumber:    $('#devisNumber').value.trim(),
     };
   }
@@ -1048,6 +1051,273 @@
   }
 
   /* ============================================================
+     HISTORIQUE DES RAPPORTS
+     ============================================================ */
+  const HISTORY_KEY = 'photorecap.history';
+  const MAX_HISTORY = 20;
+
+  function saveToHistory(info) {
+    const history = loadHistory();
+    history.unshift({ id: Date.now(), savedAt: new Date().toISOString(), info: Object.assign({}, info) });
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, MAX_HISTORY))); } catch (_) {}
+  }
+
+  function loadHistory() {
+    try { const r = localStorage.getItem(HISTORY_KEY); return r ? JSON.parse(r) : []; } catch (_) { return []; }
+  }
+
+  function deleteHistoryEntry(id) {
+    const h = loadHistory().filter((e) => e.id !== id);
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); } catch (_) {}
+  }
+
+  function bindHistory() {
+    $('#btnHistory').addEventListener('click', openHistory);
+    $('#historyClose').addEventListener('click', closeHistory);
+    $('#historyClose2').addEventListener('click', closeHistory);
+    $('#historyClearAll').addEventListener('click', () => {
+      try { localStorage.removeItem(HISTORY_KEY); } catch (_) {}
+      renderHistoryList();
+      toast('Historique effacé.', 'info');
+    });
+    $('#historyModal').addEventListener('mousedown', (e) => {
+      if (e.target === $('#historyModal')) closeHistory();
+    });
+    document.addEventListener('keydown', (e) => {
+      if ($('#historyModal').classList.contains('hidden')) return;
+      if (e.key === 'Escape') closeHistory();
+    });
+  }
+
+  function openHistory() {
+    renderHistoryList();
+    $('#historyModal').classList.remove('hidden');
+    $('#historyModal').setAttribute('aria-hidden', 'false');
+  }
+
+  function closeHistory() {
+    $('#historyModal').classList.add('hidden');
+    $('#historyModal').setAttribute('aria-hidden', 'true');
+  }
+
+  function renderHistoryList() {
+    const list = $('#historyList'), empty = $('#historyEmpty');
+    const history = loadHistory();
+    list.innerHTML = '';
+    if (!history.length) {
+      empty.classList.remove('hidden');
+      list.classList.add('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    list.classList.remove('hidden');
+    history.forEach((entry) => {
+      const info = entry.info;
+      const d = new Date(entry.savedAt);
+      const dateStr = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const timeStr = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const li = document.createElement('li');
+      li.className = 'history-item';
+      const infoDiv = document.createElement('div');
+      infoDiv.className = 'history-item-info';
+      infoDiv.innerHTML =
+        '<div class="history-item-company">' + escHtml(info.company || '—') + '</div>' +
+        '<div class="history-item-meta">' +
+        escHtml(info.siteAddress || '') +
+        (info.dateStart ? ' · ' + formatDateFr(info.dateStart) : '') +
+        '</div>';
+      const dateDiv = document.createElement('div');
+      dateDiv.className = 'history-item-date';
+      dateDiv.textContent = dateStr + ' ' + timeStr;
+      const delBtn = document.createElement('button');
+      delBtn.className = 'history-del-btn';
+      delBtn.title = 'Supprimer';
+      delBtn.textContent = '🗑';
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteHistoryEntry(entry.id);
+        renderHistoryList();
+        toast('Entrée supprimée.', 'info');
+      });
+      li.appendChild(infoDiv);
+      li.appendChild(dateDiv);
+      li.appendChild(delBtn);
+      li.addEventListener('click', () => {
+        restoreClientInfo(info);
+        closeHistory();
+        toast('Configuration restaurée. (Les photos ne sont pas sauvegardées.)', 'success');
+      });
+      list.appendChild(li);
+    });
+  }
+
+  function restoreClientInfo(info) {
+    const set = (id, val) => { const e = document.getElementById(id); if (e) e.value = val || ''; };
+    set('company', info.company);
+    set('recipientName', info.recipientName);
+    set('companyAddress', info.companyAddress);
+    set('companyPostal', info.companyPostal);
+    set('siteAddress', info.siteAddress);
+    set('siteContact', info.siteContact);
+    set('reference', info.reference);
+    set('dateLabel', info.dateLabel);
+    set('dateStart', info.dateStart);
+    set('dateEnd', info.dateEnd);
+    set('description', info.description);
+    set('devisType', info.devisType || 'devis');
+    set('devisNumber', info.devisNumber);
+    const ct = document.getElementById('closingText');
+    if (ct) ct.innerHTML = info.closingText || '';
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  /* ============================================================
+     ÉDITEUR DE TEXTE RICHE (observations)
+     ============================================================ */
+  function bindRichEditor() {
+    const editor = document.getElementById('closingText');
+    const toolbar = document.getElementById('richToolbar');
+    if (!editor || !toolbar) return;
+
+    toolbar.querySelectorAll('[data-cmd]').forEach((btn) => {
+      btn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        const cmd = btn.dataset.cmd;
+        if (cmd === 'foreColor') {
+          document.execCommand('foreColor', false, document.getElementById('richColor').value);
+        } else {
+          document.execCommand(cmd, false, null);
+        }
+        editor.focus();
+        updateRichToolbarState();
+      });
+    });
+
+    document.getElementById('richColor').addEventListener('input', (e) => {
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed) {
+        document.execCommand('foreColor', false, e.target.value);
+        updateRichToolbarState();
+      }
+    });
+
+    editor.addEventListener('keyup', updateRichToolbarState);
+    editor.addEventListener('mouseup', updateRichToolbarState);
+    document.addEventListener('selectionchange', () => {
+      if (document.activeElement === editor) updateRichToolbarState();
+    });
+  }
+
+  function updateRichToolbarState() {
+    ['bold', 'italic', 'underline'].forEach((cmd) => {
+      const btn = document.querySelector(`[data-cmd="${cmd}"]`);
+      if (btn) btn.classList.toggle('active', document.queryCommandState(cmd));
+    });
+  }
+
+  /* ============================================================
+     RENDU TEXTE RICHE DANS LE PDF
+     ============================================================ */
+  function richTextHasContent(html) {
+    if (!html) return false;
+    const d = document.createElement('div');
+    d.innerHTML = html;
+    return (d.textContent || d.innerText || '').trim().length > 0;
+  }
+
+  function cssColorToRgb(css) {
+    if (!css) return null;
+    const m = css.match(/rgb[a]?\((\d+)[,\s]+(\d+)[,\s]+(\d+)/);
+    if (m) return [+m[1], +m[2], +m[3]];
+    if (/^#/.test(css)) {
+      const h = css.replace('#', '');
+      if (h.length === 3) return [parseInt(h[0] + h[0], 16), parseInt(h[1] + h[1], 16), parseInt(h[2] + h[2], 16)];
+      if (h.length === 6) return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+    }
+    return null;
+  }
+
+  function extractRichSegments(html) {
+    if (!html) return [];
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    const segs = [];
+    function walk(node, ctx) {
+      if (node.nodeType === 3) {
+        if (node.textContent) segs.push(Object.assign({}, ctx, { text: node.textContent }));
+        return;
+      }
+      if (node.nodeType !== 1) return;
+      const tag = node.tagName.toLowerCase();
+      const nc = Object.assign({}, ctx);
+      if (tag === 'b' || tag === 'strong') nc.bold = true;
+      if (tag === 'i' || tag === 'em') nc.italic = true;
+      if (tag === 'u') nc.underline = true;
+      if (tag === 'span' || tag === 'font') {
+        const col = node.style.color || node.getAttribute('color');
+        if (col) { const rgb = cssColorToRgb(col); if (rgb) nc.color = rgb; }
+      }
+      if (tag === 'br') { segs.push(Object.assign({}, ctx, { text: '\n' })); return; }
+      node.childNodes.forEach((c) => walk(c, nc));
+      if (tag === 'div' || tag === 'p') segs.push(Object.assign({}, ctx, { text: '\n' }));
+    }
+    walk(div, { bold: false, italic: false, underline: false, color: null });
+    while (segs.length && segs[segs.length - 1].text === '\n') segs.pop();
+    return segs;
+  }
+
+  function drawRichTextInPdf(doc, html, x, startY, maxW, LH, defaultColor, maxY) {
+    const dc = defaultColor || PDFC.dark;
+    const segs = extractRichSegments(html);
+    if (!segs.length) return startY;
+    const FS = 10;
+    let curX = x, curY = startY;
+    const yLimit = maxY || 9999;
+
+    function fStyle(b, i) { return (b && i) ? 'bolditalic' : b ? 'bold' : i ? 'italic' : 'normal'; }
+    function wordW(word, b, i) {
+      doc.setFont('helvetica', fStyle(b, i)); doc.setFontSize(FS);
+      return doc.getTextWidth(word);
+    }
+
+    for (const seg of segs) {
+      const parts = seg.text.split('\n');
+      for (let pi = 0; pi < parts.length; pi++) {
+        if (pi > 0) { curX = x; curY += LH; }
+        if (curY > yLimit) return curY;
+        const part = parts[pi];
+        if (!part) continue;
+        const tokens = part.split(/(\s+)/);
+        for (const tok of tokens) {
+          if (!tok) continue;
+          const w = wordW(tok, seg.bold, seg.italic);
+          if (curX + w > x + maxW && curX > x && tok.trim()) {
+            curX = x; curY += LH;
+            if (curY > yLimit) return curY;
+          }
+          if (!tok.trim() && curX <= x + 0.1) continue;
+          const color = seg.color || dc;
+          doc.setFont('helvetica', fStyle(seg.bold, seg.italic));
+          doc.setFontSize(FS);
+          doc.setTextColor(...color);
+          doc.text(tok, curX, curY);
+          if (seg.underline && tok.trim()) {
+            const tw = doc.getTextWidth(tok);
+            doc.setDrawColor(...color);
+            doc.setLineWidth(0.25);
+            doc.line(curX, curY + 0.9, curX + tw, curY + 0.9);
+          }
+          curX += w;
+        }
+      }
+    }
+    return curY;
+  }
+
+  /* ============================================================
      4. GÉNÉRATION DU PDF
      ============================================================ */
   function bindPdf() {
@@ -1120,14 +1390,12 @@
     else if (layout === 'grid6') photoPagesGrid(doc, info, PW, PH, M, 2, 3);
     else                          photoPagesFlow(doc, info, PW, PH, M, CW);
 
-    /* ---------- Page de clôture (texte libre + devis + signature) ---------- */
-    closingPage(doc, info, PW, PH, M);
-
     // Numérotation des pages (toutes sauf couverture)
     paginate(doc, PW, PH, M);
 
     const fname = buildFilename(info);
     doc.save(fname);
+    saveToHistory(info);
     toast('Rapport PDF généré ✔', 'success');
   }
 
@@ -1329,25 +1597,45 @@
       });
     }
 
-    // --- Observations / recommandations (séparées par un saut de ligne) ---
-    if (info.closingText) {
-      y += LH;                                                           // 1 ligne vide
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...PDFC.ink);
-      doc.text('Observations / recommandations :', M, y); y += LH;
-      doc.setFont('helvetica', 'normal'); doc.setTextColor(...PDFC.dark);
-      const obs = doc.splitTextToSize(info.closingText, PW - M * 2);
-      for (const line of obs) {
-        if (y > PH - 36) break;       // ne pas empiéter sur le devis/pied de page
-        doc.text(line, M, y); y += LH;
-      }
-    }
-
-    // --- Renvoi devis (sur la 1ʳᵉ page maintenant) ---
-    if (info.devisNumber) {
+    // --- Observations / recommandations ---
+    if (richTextHasContent(info.closingText)) {
       y += LH;
       doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...PDFC.ink);
-      doc.text('Voir notre devis n°' + info.devisNumber + ' joint en annexe.', M, y);
+      doc.text('Observations / recommandations :', M, y); y += LH;
+      y = drawRichTextInPdf(doc, info.closingText, M, y, PW - M * 2, LH, PDFC.dark, PH - 108);
     }
+
+    // — Filet de séparation avant la section de clôture —
+    y += LH * 3;
+    doc.setDrawColor(...PDFC.light); doc.setLineWidth(0.3);
+    doc.line(M, y, PW - M, y);
+    y += LH * 1.8;
+
+    // --- Renvoi devis / facture ---
+    if (info.devisNumber) {
+      const dtype = info.devisType === 'facture' ? 'facture' : 'devis';
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...PDFC.ink);
+      doc.text('Voir notre ' + dtype + ' n° ' + info.devisNumber + ' joint en annexe.', M, y);
+      y += LH * 2.5;
+    }
+
+    // --- Cordialement + Signature (sur la 1re page) ---
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(...PDFC.dark);
+    doc.text('Restant à votre disposition pour tout complément d’information,', M, y); y += LH;
+    doc.text('Cordialement,', M, y); y += LH * 3;
+    if (settings.signatureImg && settings.signatureRatio) {
+      const sw = 42, sh = sw * settings.signatureRatio;
+      if (y + sh + 14 < PH - 22) {
+        try { doc.addImage(settings.signatureImg, 'PNG', M, y, sw, sh); } catch (_) {}
+        y += sh + 4;
+      }
+    } else {
+      y += 6;
+    }
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(...PDFC.ink);
+    if (settings.signatory) { doc.text(settings.signatory, M, y); y += 6; }
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(...PDFC.dark);
+    if (settings.signatoryPhone) doc.text(settings.signatoryPhone, M, y);
 
     // --- Pied de page de garde : méta + mentions légales ---
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PDFC.grey);
@@ -1371,32 +1659,6 @@
     const e = info.dateEnd ? formatDateFr(info.dateEnd) : '';
     if (s && e && e !== s) return 'du ' + s + ' au ' + e;
     return s || '';
-  }
-
-  // Page de clôture : politesse + signature (image) + nom/tél
-  // (le renvoi au devis a été déplacé sur la 1ʳᵉ page)
-  function closingPage(doc, info, PW, PH, M) {
-    doc.addPage();
-    pageChrome(doc, info, PW, PH, M);
-    let y = M + 18;
-
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(...PDFC.dark);
-    doc.text('Restant à votre disposition pour tout complément d’information', M, y); y += 6.5;
-    doc.text('Cordialement,', M, y); y += 9;
-
-    // Signature manuscrite (image) si présente
-    if (settings.signatureImg && settings.signatureRatio) {
-      const sw = 45, sh = sw * settings.signatureRatio;
-      try { doc.addImage(settings.signatureImg, 'PNG', M, y, sw, sh); } catch (_) {}
-      y += sh + 2;
-    } else {
-      y += 8;
-    }
-
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...PDFC.ink);
-    doc.text(settings.signatory || '', M, y); y += 6.5;
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(...PDFC.dark);
-    doc.text(settings.signatoryPhone || '', M, y);
   }
 
   // En-tête + pied discrets sur les pages photos (bandeau noir, accent jaune)
