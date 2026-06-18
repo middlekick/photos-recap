@@ -1182,32 +1182,66 @@
     const toolbar = document.getElementById('richToolbar');
     if (!editor || !toolbar) return;
 
+    // Sauvegarde / restauration de la sélection
+    // Certains navigateurs (Safari, Chrome mobile…) effacent la sélection
+    // dans un contenteditable dès qu'on clique ailleurs, même avec preventDefault.
+    let savedRange = null;
+
+    function saveSelection() {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && editor.contains(sel.anchorNode)) {
+        savedRange = sel.getRangeAt(0).cloneRange();
+      }
+    }
+
+    function restoreSelection() {
+      if (!savedRange) return;
+      editor.focus();
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(savedRange);
+    }
+
+    // Mise à jour de l'état des boutons
+    function sync() {
+      saveSelection();
+      updateRichToolbarState();
+    }
+
+    editor.addEventListener('mouseup', sync);
+    editor.addEventListener('keyup', sync);
+    editor.addEventListener('input', saveSelection);
+    document.addEventListener('selectionchange', () => {
+      if (document.activeElement === editor) sync();
+    });
+
+    // Boutons de la toolbar
     toolbar.querySelectorAll('[data-cmd]').forEach((btn) => {
       btn.addEventListener('mousedown', (e) => {
-        e.preventDefault();
+        e.preventDefault(); // évite la perte de focus
+      });
+      btn.addEventListener('click', () => {
+        restoreSelection();
         const cmd = btn.dataset.cmd;
         if (cmd === 'foreColor') {
           document.execCommand('foreColor', false, document.getElementById('richColor').value);
         } else {
           document.execCommand(cmd, false, null);
         }
-        editor.focus();
+        saveSelection();
         updateRichToolbarState();
       });
     });
 
+    // Color picker : restaure la sélection avant d'appliquer la couleur
     document.getElementById('richColor').addEventListener('input', (e) => {
+      restoreSelection();
       const sel = window.getSelection();
       if (sel && !sel.isCollapsed) {
         document.execCommand('foreColor', false, e.target.value);
+        saveSelection();
         updateRichToolbarState();
       }
-    });
-
-    editor.addEventListener('keyup', updateRichToolbarState);
-    editor.addEventListener('mouseup', updateRichToolbarState);
-    document.addEventListener('selectionchange', () => {
-      if (document.activeElement === editor) updateRichToolbarState();
     });
   }
 
